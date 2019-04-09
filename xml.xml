@@ -28,11 +28,12 @@
     <instruction order="15" opcode="POPS">
 	  <arg1 type="var">LF@var</arg1>
 	</instruction>
-    <instruction order="16" opcode="STRI2INT">
+    <instruction order="25" opcode="GETCHAR">
 	  <arg1 type="var">LF@var</arg1>
 	  <arg2 type="string">ahoj</arg2>
 	  <arg3 type="int">2</arg3>
 	</instruction>
+
     <instruction order="20" opcode="RETURN"/>
     <instruction order="21" opcode="LABEL">
         <arg1 type="label">konec</arg1>

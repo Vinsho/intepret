@@ -2,13 +2,12 @@
 
 import xml.etree.cElementTree as ET
 import sys
-from operator import itemgetter
 class frame_mang():
     Frame_stack = []
     GF = {}
     TF = None
     LF = None
-
+    source_doc = ''
 
 def parser(xml_doc, program):
 
@@ -87,6 +86,14 @@ def parser(xml_doc, program):
                 exit(32)
             if instruction[2].attrib['type'] not in symb:
                 exit(32)
+        elif operation == 'READ':
+            if len(instruction) != 2:
+                sys.exit(32)
+            if instruction[0].attrib['type'] != 'var':
+                sys.exit(32)
+            if instruction[1].attrib['type'] != 'type' or instruction[1].text not in ['int','string','bool']:
+                sys.exit(32)
+
         else:
             exit(32)
         command.append(operation)
@@ -331,14 +338,60 @@ def semantics(program,starting_position, frame):
                 update_var(command[2]['value'], frame, ord(string[int(get_symb_value(command[4], frame))]))
             except:
                 sys.exit(58)
+        elif instruction == 'READ':
+            type = command[3]['value']
+            if frame.source_doc == '':
+                value = input()
+            else:
+                f = open(frame.source_doc)
+                value = f.readline()
+            if type == 'int':
+                try:
+                    value = int(value)
+                except:
+                    value = 0
+
+            elif type == 'bool':
+                if value.lower() == 'true':
+                    value = 'true'
+                else:
+                    value = 'false'
+            elif type == 'string':
+                 try:
+                     value = str(value)
+                 except:
+                    value = ''
+            else:
+                sys.exit(53)
+            update_var(command[2]['value'], frame, value)
+        elif instruction == 'WRITE':
+            print(get_symb_value(command[2], frame), end='')
+        elif instruction == 'CONCAT':
+            a_type = get_symb_type(command[3], frame)
+            b_type = get_symb_type(command[4], frame)
+            if a_type == b_type and a_type == 'string':
+                value = get_symb_value(command[3], frame) + get_symb_value(command[4],frame)
+                update_var(command[2]['value'], frame, value)
+            else:
+                sys.exit(53)
+        elif instruction == 'STRLEN':
+            if get_symb_type(command[3],frame):
+                update_var(command[2]['value'], frame, len(get_symb_value(command[3], frame)))
+        elif instruction == 'GETCHAR':
+            try:
+                string = get_symb_value(command[3], frame)
+                update_var(command[2]['value'], frame, string[int(get_symb_value(command[4], frame))])
+            except:
+                sys.exit(58)
         if in_call:
             break
 
 
 
+
 xml_doc = ''
-source_doc = ''
 program = []
+frame = frame_mang()
 for s in sys.argv:
     if "--help" in s:
         print("HEEELP")
@@ -352,17 +405,16 @@ for s in sys.argv:
             exit(31)# v pripade zleho XML
 
     elif "--input=" in s:
-        for line in open(s.split('--input=')[1]):
-            source_doc += line
-if xml_doc == source_doc:
+        frame.source_doc = s.split('--input=')[1]
+if xml_doc == frame.source_doc:
     exit(11)
 else:
     if xml_doc == 0:
         xml_doc = ET.fromstring(sys.stdin)
-    else:
-        source_doc = sys.stdin
+
 parser(xml_doc, program)
-frame = frame_mang()
+
 semantics(program, 0, frame)
 print(frame.LF)
 
+1
