@@ -168,6 +168,8 @@ def get_symb_type(symb, frame):
                 return 'nil'
             elif value.lower() == 'true' or value.lower() == 'false':
                 return 'bool'
+            elif value == '':
+                return ''
             else:
                 return 'string'
 
@@ -256,6 +258,23 @@ def semantics(program,starting_position, frame):
         elif instruction == 'JUMP':
             semantics(program, find_instr_index_after_label(program, command[2]['value']), frame)
             in_call = True
+        elif instruction in ['JUMPIFEQ','JUMPIFNEQ']:
+            a_type = get_symb_type(command[3], frame)
+            b_type = get_symb_type(command[4], frame)
+            a = get_symb_value(command[3], frame)
+            b = get_symb_value(command[4], frame)
+            if a_type == b_type:
+                if instruction == 'JUMPIFEQ':
+                    if a == b:
+                        semantics(program, find_instr_index_after_label(program, command[2]['value']), frame)
+                        in_call = True
+                else:
+                    if a != b:
+                        semantics(program, find_instr_index_after_label(program, command[2]['value']), frame)
+                        in_call = True
+            else:
+                sys.exit(58)
+
         elif instruction == 'PUSHS':
             data_stack.append(get_symb_value(command[2], frame))
         elif instruction == 'POPS':
@@ -383,6 +402,33 @@ def semantics(program,starting_position, frame):
                 update_var(command[2]['value'], frame, string[int(get_symb_value(command[4], frame))])
             except:
                 sys.exit(58)
+        elif instruction == 'SETCHAR':
+            value = get_var_value(command[2]['value'], frame)
+            position = get_symb_value(command[3], frame)
+            char = get_symb_value(command[4], frame)
+            try:
+                temp_list = list(value)
+                temp_list[int(position)] = char[0]
+                value = ''.join(temp_list)
+                update_var(command[2]['value'], frame, value)
+            except:
+                sys.exit(58)
+        elif instruction == 'TYPE':
+            update_var(command[2]['value'], frame, get_symb_type(command[3], frame))
+        elif instruction == 'EXIT':
+            exit_code = get_symb_value(command[2], frame)
+            try:
+                exit_code = int(exit_code)
+            except:
+                sys.exit(53)
+            if 0 <= exit_code <= 49:
+                sys.exit(exit_code)
+            else:
+                sys.exit(57)
+        elif instruction == 'DPRINT':
+            sys.stderr.write(get_symb_value(command[2], frame))
+        elif instruction == 'BREAK':
+            pass
         if in_call:
             break
 
@@ -417,4 +463,3 @@ parser(xml_doc, program)
 semantics(program, 0, frame)
 print(frame.LF)
 
-1
