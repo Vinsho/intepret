@@ -2,6 +2,8 @@
 
 import xml.etree.cElementTree as ET
 import sys
+
+
 class frame_mang():
     Frame_stack = []
     GF = {}
@@ -9,7 +11,9 @@ class frame_mang():
     LF = None
     source_doc = ''
 
+
 def parser(xml_doc, program):
+    # Funkcia prevedie nad kódom syntaktickú kontrolu a spracuje ho do formátu s ktorým sa lahšie pracuje
 
     no_arg_instructions = ['CREATEFRAME', 'PUSHFRAME', 'POPFRAME', 'RETURN', 'BREAK']
     able_to_be_label = ['LABEL', 'CALL', 'JUMP', 'JUMPIFEQ', 'JUMPIFNEQ']
@@ -19,10 +23,11 @@ def parser(xml_doc, program):
     labels = []
     if list(xml_doc.attrib.values())[0] != 'IPPcode19':
         exit(32)
-
+    args_singularity = []
+    order_singularity = []
     for instruction in xml_doc:
-        instruction[:] = sorted(instruction, key=lambda child: child.tag) #sort args
-
+        instruction[:] = sorted(instruction, key=lambda child: child.tag)  # Zoradí argumenty operacií
+        args_singularity.append(instruction.get('order'))
         command = []
         operation = instruction.get('opcode').upper()
         if operation in no_arg_instructions:
@@ -45,7 +50,7 @@ def parser(xml_doc, program):
                         sys.exit(52)
                     else:
                         labels.append(label)
-            elif len(instruction) == 3:#JUMPIFEQ/NEQ
+            elif len(instruction) == 3:  # JUMPIFEQ/NEQ
                 if instruction[1].attrib['type'] not in symb or instruction[2].attrib['type'] not in symb:
                     exit(32)
             else:
@@ -91,7 +96,7 @@ def parser(xml_doc, program):
                 sys.exit(32)
             if instruction[0].attrib['type'] != 'var':
                 sys.exit(32)
-            if instruction[1].attrib['type'] != 'type' or instruction[1].text not in ['int','string','bool']:
+            if instruction[1].attrib['type'] != 'type' or instruction[1].text not in ['int', 'string', 'bool']:
                 sys.exit(32)
 
         else:
@@ -107,8 +112,24 @@ def parser(xml_doc, program):
                 except:
                     sys.exit(32)
             elif arg_type == 'string':
+                if arg_value is None:
+                    arg_value = ''
                 if not isinstance(arg_value, str):
                     sys.exit(32)
+                appearances = [i for i, a in enumerate(arg_value) if a == "\\"]
+                offset = 0
+                for position in appearances:
+                    position -= offset
+                    offset += 3
+                    a = arg_value[:position]
+                    b = arg_value[position+4:]
+                    znak = arg_value[position+1:position+4]
+                    try :
+                        char = chr(int(znak))
+                    except:
+                        sys.exit(57)
+                    arg_value = a+char+b
+
             elif arg_type == 'bool':
                 if arg_value.lower() != 'true' and arg_value.lower() != 'false':
                     sys.exit(32)
@@ -117,10 +138,19 @@ def parser(xml_doc, program):
                     sys.exit(32)
             command.append({'type': arg_type, 'value': arg_value})
         program.append(command)
-    program[:] = sorted(program, key=lambda x: int(x[1]))
+        order_singularity.append(command[1])
+    program[:] = sorted(program, key=lambda x: int(x[1]))  # zoradi operacie podla order
+
+    # Skontroluje ci nemá operácia argumenty s rovnakým poradím
+    if len(args_singularity) != len(set(args_singularity)):
+        sys.exit(32)
+    # Skontroluje či nemá program operácie s rovnakým orderom
+    if len(order_singularity) != len(set(order_singularity)):
+        sys.exit(32)
 
 
 def get_var_value(var, frame):
+    # Funkcia vráti hodnotu premennej, pokiaľ existuje
     if 'GF' in var:
         name = var.split('GF@')[1]
         if name in frame.GF.keys():
@@ -145,49 +175,56 @@ def get_var_value(var, frame):
             value = frame.LF[name]
         else:
             sys.exit(54)
+    if value is None:
+        sys.exit(56)
     return value
 
 
 def get_symb_value(symb, frame):
+    # Funkcia vráti hodnotu symbolu
     if symb['type'] in ['int', 'string', 'bool', 'nil']:
+        if symb['type'] == 'nil':
+            return ''
         return symb['value']
     else:
         return get_var_value(symb['value'], frame)
 
 
 def get_symb_type(symb, frame):
+    # Funkcia vráti typ symbolu
     if symb['type'] in ['int', 'string', 'bool', 'nil']:
         return symb['type']
     elif symb['type'] == 'var':
         value = get_var_value(symb['value'], frame)
-        try:
-            int(value)
-            return 'int'
-        except:
-            if value == 'nil':
-                return 'nil'
-            elif value.lower() == 'true' or value.lower() == 'false':
-                return 'bool'
-            elif value == '':
-                return ''
-            else:
+
+        if value == 'nil':
+            return 'nil'
+        elif str(value).lower() == 'true' or str(value).lower() == 'false':
+            return 'bool'
+        else:
+            try:
+                int(value)
+                return 'int'
+            except:
                 return 'string'
 
 
 def incialize_var(var, frame):
+    # Funkcia inicializuje premennú vo frame
     if 'GF' in var:
-        frame.GF[var.split('GF@')[1]] = ''
+        frame.GF[var.split('GF@')[1]] = None
     elif 'TF' in var:
         if frame.TF is None:
             sys.exit(55)
-        frame.TF[var.split('TF@')[1]] = ''
+        frame.TF[var.split('TF@')[1]] = None
     elif 'LF' in var:
         if frame.LF is None:
             sys.exit(55)
-        frame.LF[var.split('LF@')[1]] = ''
+        frame.LF[var.split('LF@')[1]] = None
 
 
 def update_var(var, frame, value):
+    # Funkcia updatne hodnotu premennej, pokiaľ existuje
     if 'GF' in var:
         name = var.split('GF@')[1]
         if name in frame.GF.keys():
@@ -215,10 +252,12 @@ def update_var(var, frame, value):
 
 
 def find_instr_index_after_label(program, label):
+    # Funkcia nájde index operácie nasledujúcej po hľadanom lable
     for i in range(len(program)):
         if program[i][0] == 'LABEL':
             if program[i][2]['value'] == label:
                 return i+1
+    return None
 
 
 call_stack = []
@@ -226,8 +265,9 @@ data_stack = []
 
 
 def semantics(program,starting_position, frame):
+    # Funkcia zabezpečuje sémanticku kontrolu všetkých operácii
     in_call = False
-    for idx,command in enumerate(program[starting_position:]):
+    for command in program[starting_position:]:
         instruction = command[0]
         if instruction == 'DEFVAR':
             incialize_var(command[2]['value'], frame)
@@ -247,14 +287,17 @@ def semantics(program,starting_position, frame):
             frame.TF = frame.Frame_stack.pop()
             frame.LF = None
         elif instruction == 'CALL':
-            call_stack.append(idx+1)
-            semantics(program, find_instr_index_after_label(program, command[2]['value']), frame)
-            in_call=True
+            call_stack.append(command[1])
+            index = find_instr_index_after_label(program, command[2]['value'])
+            if (index == None):
+                sys.exit(52)
+            semantics(program, index, frame)
         elif instruction == 'RETURN':
             try:
-                semantics(program,call_stack.pop(),frame)
+                index = call_stack.pop()
             except:
                 sys.exit(56)
+            in_call = True
         elif instruction == 'JUMP':
             semantics(program, find_instr_index_after_label(program, command[2]['value']), frame)
             in_call = True
@@ -263,6 +306,7 @@ def semantics(program,starting_position, frame):
             b_type = get_symb_type(command[4], frame)
             a = get_symb_value(command[3], frame)
             b = get_symb_value(command[4], frame)
+
             if a_type == b_type:
                 if instruction == 'JUMPIFEQ':
                     if a == b:
@@ -282,6 +326,7 @@ def semantics(program,starting_position, frame):
                 value = data_stack.pop()
             except:
                 sys.exit(56)
+
             update_var(command[2]['value'], frame, value)
         elif instruction in ['ADD', 'SUB', 'MUL', 'IDIV']:
             if get_symb_type(command[3], frame) == 'int' and get_symb_type(command[4], frame) == 'int':
@@ -306,27 +351,30 @@ def semantics(program,starting_position, frame):
             b_type = get_symb_type(command[4], frame)
             a = get_symb_value(command[3], frame)
             b = get_symb_value(command[4], frame)
-            if a_type == b_type:
-                if a_type == 'nil':
-                    if instruction == 'EQ':
+            if a_type == 'nil' or b_type == 'nil':
+                if instruction == 'EQ':
+                    if a == b:
                         update_var(command[2]['value'], frame, 'true')
                     else:
-                        sys.exit(53)
-                elif a_type == 'int':
+                        update_var(command[2]['value'], frame, 'false')
+                else:
+                    sys.exit(53)
+            elif a_type == b_type:
+                if a_type == 'int':
                     if instruction == 'LT':
-                        update_var(command[2]['value'], frame, int(a) < int(b))
+                        update_var(command[2]['value'], frame, str(int(a) < int(b)).lower())
                     elif instruction == 'GT':
-                        update_var(command[2]['value'], frame, int(a) > int(b))
+                        update_var(command[2]['value'], frame, str(int(a) > int(b)).lower())
                     elif instruction == 'EQ':
-                        update_var(command[2]['value'], frame, int(a) == int(b))
+                        update_var(command[2]['value'], frame, str(int(a) == int(b)).lower())
 
                 elif a_type == 'string' or a_type == 'bool':
                     if instruction == 'LT':
-                        update_var(command[2]['value'], frame, a < b)
+                        update_var(command[2]['value'], frame, str(a < b).lower())
                     if instruction == 'GT':
-                        update_var(command[2]['value'], frame, a > b)
+                        update_var(command[2]['value'], frame, str(a > b).lower())
                     if instruction == 'EQ':
-                        update_var(command[2]['value'], frame, a == b)
+                        update_var(command[2]['value'], frame, str(a == b).lower())
             else:
                 sys.exit(53)
         elif instruction in ['AND', 'OR']:
@@ -334,16 +382,30 @@ def semantics(program,starting_position, frame):
             b_type = get_symb_type(command[4], frame)
             a = get_symb_value(command[3], frame)
             b = get_symb_value(command[4], frame)
+
+            if a == 'true':
+                a = True
+            else:
+                a = False
+            if b == 'true':
+                b = True
+            else:
+                b = False
             if a_type == 'bool' and a_type == b_type:
                 if instruction == 'AND':
-                    update_var(command[2]['value'], frame, a and b)
+                    update_var(command[2]['value'], frame, str(a and b).lower())
                 if instruction == 'OR':
-                    update_var(command[2]['value'], frame, a or b)
+                    update_var(command[2]['value'], frame, str(a or b).lower())
             else :
                 sys.exit(53)
         elif instruction == 'NOT':
             if get_symb_type(command[3], frame) == 'bool':
-                update_var(command[2]['value'], frame, not get_symb_value(command[3], frame))
+                value = get_symb_value(command[3], frame)
+                if value == 'true':
+                    value = True
+                else:
+                    value = False
+                update_var(command[2]['value'], frame, str(not value).lower())
             else :
                 sys.exit(53)
         elif instruction == 'INT2CHAR':
@@ -397,22 +459,28 @@ def semantics(program,starting_position, frame):
             if get_symb_type(command[3],frame):
                 update_var(command[2]['value'], frame, len(get_symb_value(command[3], frame)))
         elif instruction == 'GETCHAR':
+            string = get_symb_value(command[3], frame)
+            idx = get_symb_value(command[4], frame)
+            if get_symb_type(command[3],frame) != 'string' or get_symb_type(command[4],frame) != 'int':
+                sys.exit(53)
             try:
-                string = get_symb_value(command[3], frame)
-                update_var(command[2]['value'], frame, string[int(get_symb_value(command[4], frame))])
+                new_value = string[int(idx)]
             except:
                 sys.exit(58)
+            update_var(command[2]['value'], frame, new_value)
         elif instruction == 'SETCHAR':
             value = get_var_value(command[2]['value'], frame)
             position = get_symb_value(command[3], frame)
             char = get_symb_value(command[4], frame)
+            if get_symb_type(command[2],frame) != 'string' or get_symb_type(command[3],frame) != 'int' or get_symb_type(command[4],frame) != 'string':
+                sys.exit(53)
             try:
                 temp_list = list(value)
                 temp_list[int(position)] = char[0]
                 value = ''.join(temp_list)
-                update_var(command[2]['value'], frame, value)
             except:
                 sys.exit(58)
+            update_var(command[2]['value'], frame, value)
         elif instruction == 'TYPE':
             update_var(command[2]['value'], frame, get_symb_type(command[3], frame))
         elif instruction == 'EXIT':
@@ -433,14 +501,20 @@ def semantics(program,starting_position, frame):
             break
 
 
-
-
 xml_doc = ''
 program = []
 frame = frame_mang()
 for s in sys.argv:
     if "--help" in s:
-        print("HEEELP")
+        if len(sys.argv) != 2:
+            sys.exit(10)
+        print("----------------------------------------------------------------------------------------\n"
+              "INTERPRET HELP:\n"
+              "Program načíta XML reprezentáciu programu zo zadaného súboru a tento program s využitím\n"
+              "štandartného vstupu a výstupu interpretuje.\n"
+              "----------------------------------------------------------------------------------------\n"
+              "Spúštanie:\n"
+              "./interpret.py --source=%súbor_so_vstupným_xml --input=%súbor_s_input_údajmi")
         exit(0)
     elif "--source=" in s:
         for line in open(s.split('--source=')[1]):
@@ -448,7 +522,7 @@ for s in sys.argv:
         try:
             xml_doc = ET.fromstring(xml_doc)
         except:
-            exit(31)# v pripade zleho XML
+            exit(31)  # V prípade zlého XML
 
     elif "--input=" in s:
         frame.source_doc = s.split('--input=')[1]
@@ -459,7 +533,5 @@ else:
         xml_doc = ET.fromstring(sys.stdin)
 
 parser(xml_doc, program)
-
 semantics(program, 0, frame)
-print(frame.LF)
 
